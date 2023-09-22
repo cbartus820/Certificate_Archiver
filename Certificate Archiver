@@ -1,0 +1,398 @@
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from bs4 import BeautifulSoup
+import time
+import os
+import shutil
+
+from selenium import webdriver
+from selenium.webdriver.firefox.service import Service
+from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from tkinter import Tk, filedialog
+from selenium.common.exceptions import NoSuchElementException
+#from selenium.webdriver.chrome.service import Service
+#from selenium.webdriver.chrome.options import Options
+#from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.common.exceptions import TimeoutException
+import pytz
+from datetime import datetime
+
+# Functions
+#Function to convert state name to abbreviation if necessary
+def get_full_state_name(state_abbreviation):
+    us_state_abbrev = {
+        'AL': 'ALABAMA',
+        'AK': 'ALASKA',
+        'AZ': 'ARIZONA',
+        'AR': 'ARKANSAS',
+        'CA': 'CALIFORNIA',
+        'CO': 'COLORADO',
+        'CT': 'CONNECTICUT',
+        'DE': 'DELAWARE',
+        'FL': 'FLORIDA',
+        'GA': 'GEORGIA',
+        'HI': 'HAWAII',
+        'ID': 'IDAHO',
+        'IL': 'ILLINOIS',
+        'IN': 'INDIANA',
+        'IA': 'IOWA',
+        'KS': 'KANSAS',
+        'KY': 'KENTUCKY',
+        'LA': 'LOUISIANA',
+        'ME': 'MAINE',
+        'MD': 'MARYLAND',
+        'MA': 'MASSACHUSETTS',
+        'MI': 'MICHIGAN',
+        'MN': 'MINNESOTA',
+        'MS': 'MISSISSIPPI',
+        'MO': 'MISSOURI',
+        'MT': 'MONTANA',
+        'NE': 'NEBRASKA',
+        'NV': 'NEVADA',
+        'NH': 'NEW HAMPSHIRE',
+        'NJ': 'NEW JERSEY',
+        'NM': 'NEW MEXICO',
+        'NY': 'NEW YORK',
+        'NC': 'NORTH CAROLINA',
+        'ND': 'NORTH DAKOTA',
+        'OH': 'OHIO',
+        'OK': 'OKLAHOMA',
+        'OR': 'OREGON',
+        'PA': 'PENNSYLVANIA',
+        'RI': 'RHODE ISLAND',
+        'SC': 'SOUTH CAROLINA',
+        'SD': 'SOUTH DAKOTA',
+        'TN': 'TENNESSEE',
+        'TX': 'TEXAS',
+        'UT': 'UTAH',
+        'VT': 'VERMONT',
+        'VA': 'VIRGINIA',
+        'WA': 'WASHINGTON',
+        'WV': 'WEST VIRGINIA',
+        'WI': 'WISCONSIN',
+        'WY': 'WYOMING',
+        'DC': 'DISTRICT OF COLUMBIA',
+        'PR': 'PUERTO RICO',
+        'VI': 'VIRGIN ISLANDS',
+        'GU': 'GUAM',
+        'AS': 'AMERICAN SAMOA',
+        'MP': 'NORTHERN MARIANA ISLANDS',
+        'FM': 'FEDERATED STATES OF MICRONESIA',
+        'MH': 'MARSHALL ISLANDS',
+        'PW': 'PALAU',
+    }
+
+    state_abbreviation = state_abbreviation.upper()
+    return us_state_abbrev.get(state_abbreviation)
+
+#Function to reverse abbreviation to state name if necessary
+def get_state_abbreviation(full_state_name):
+    us_state_abbrev = {
+        'ALABAMA': 'AL',
+        'ALASKA': 'AK',
+        'ARIZONA': 'AZ',
+        'ARKANSAS': 'AR',
+        'CALIFORNIA': 'CA',
+        'COLORADO': 'CO',
+        'CONNECTICUT': 'CT',
+        'DELAWARE': 'DE',
+        'FLORIDA': 'FL',
+        'GEORGIA': 'GA',
+        'HAWAII': 'HI',
+        'IDAHO': 'ID',
+        'ILLINOIS': 'IL',
+        'INDIANA': 'IN',
+        'IOWA': 'IA',
+        'KANSAS': 'KS',
+        'KENTUCKY': 'KY',
+        'LOUISIANA': 'LA',
+        'MAINE': 'ME',
+        'MARYLAND': 'MD',
+        'MASSACHUSETTS': 'MA',
+        'MICHIGAN': 'MI',
+        'MINNESOTA': 'MN',
+        'MISSISSIPPI': 'MS',
+        'MISSOURI': 'MO',
+        'MONTANA': 'MT',
+        'NEBRASKA': 'NE',
+        'NEVADA': 'NV',
+        'NEW HAMPSHIRE': 'NH',
+        'NEW JERSEY': 'NJ',
+        'NEW MEXICO': 'NM',
+        'NEW YORK': 'NY',
+        'NORTH CAROLINA': 'NC',
+        'NORTH DAKOTA': 'ND',
+        'OHIO': 'OH',
+        'OKLAHOMA': 'OK',
+        'OREGON': 'OR',
+        'PENNSYLVANIA': 'PA',
+        'RHODE ISLAND': 'RI',
+        'SOUTH CAROLINA': 'SC',
+        'SOUTH DAKOTA': 'SD',
+        'TENNESSEE': 'TN',
+        'TEXAS': 'TX',
+        'UTAH': 'UT',
+        'VERMONT': 'VT',
+        'VIRGINIA': 'VA',
+        'WASHINGTON': 'WA',
+        'WEST VIRGINIA': 'WV',
+        'WISCONSIN': 'WI',
+        'WYOMING': 'WY',
+        'DISTRICT OF COLUMBIA': 'DC',
+        'PUERTO RICO': 'PR',
+        'VIRGIN ISLANDS': 'VI',
+        'GUAM': 'GU',
+        'AMERICAN SAMOA': 'AS',
+        'NORTHERN MARIANA ISLANDS': 'MP',
+        'FEDERATED STATES OF MICRONESIA': 'FM',
+        'MARSHALL ISLANDS': 'MH',
+        'PALAU': 'PW',
+    }
+
+    full_state_name = full_state_name.upper()
+    return us_state_abbrev.get(full_state_name)
+
+def get_current_time_in_est():
+    eastern = pytz.timezone('US/Eastern')
+    utc_now = datetime.utcnow()
+    est_now = utc_now.replace(tzinfo=pytz.utc).astimezone(eastern)
+    return est_now
+
+def add_exception_row(custname, custstate,saveyear, savemonth,exemptreason, error_message):
+    global exceptions_df  # Use the global DataFrame variable
+    exceptions_df.loc[len(exceptions_df)] = {
+        'customer_name': custname,
+        'state': custstate,
+        'save year': saveyear,
+        'save month': savemonth,
+        'exemption reason': exemptreason,
+        'error': error_message,
+        'timestamp': get_current_time_in_est()  # Add the current time as 'timestamp'
+    }
+
+def rename_downloaded_file(custname, savedir):
+    """
+    This function will look for the file in the directory and rename it based on its type.
+    """
+    # Check if a PDF exists with the customer's name
+    if os.path.isfile(os.path.join(savedir, f'{custname}.pdf')):
+        # Your renaming logic for PDFs here
+        pass
+    elif os.path.isfile(os.path.join(savedir, f'{custname}.jpg')):
+        # Handle JPGs differently or convert to PDF if needed
+        pass
+    else:
+        print(f"No PDF or JPG found for {custname}. Check downloads.")
+
+#import list of customs whos certificates need downloaded
+root = Tk()
+root.withdraw()  # Hide the root window
+
+#Querry user for list of customers to download certificates for
+csv_file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+root.destroy()
+#Read the data into a pandas data frame
+df = pd.read_csv(csv_file_path)
+#create a data frame to store data related to errors
+exceptions_df = pd.DataFrame(columns=['customer_name', 'state', 'save year','save month', 'exemption reason','timestamp'])
+
+# Define Firefox Options
+options = Options()
+
+# Specify the path to the Firefox executable
+
+options.binary_location = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+
+options.binary_location = r"C:\Users\christopher.bartus\AppData\Local\Mozilla Firefox\firefox.exe"
+
+#load Gecko Driver required for selenium browser interaction
+s = Service('T:\Christopher.Bartus\Tax\geckodriver.exe')
+#s = Service('T:\Christopher.Bartus\Tax\chromedriver.exe')
+
+# Create a new Selenium browser instance
+browser = webdriver.Firefox(options=options, service=s)
+#browser = webdriver.Chrome(options=options, service=s)
+
+#Navigate to Vertex login page
+browser.get('https://portal.vertexsmb.com')
+#Fill in Username
+username_field = browser.find_element(By.NAME,'username')
+username_field.send_keys('christopher.bartus@fotronic.com')
+#click continue
+continue_button = browser.find_element(By.NAME,'action')
+continue_button.click()
+time.sleep(1)  # Let the page load
+#fill in password
+password_field = browser.find_element(By.NAME,'password')
+password_field.send_keys('wP!7Qb9IUI1ktPc')
+
+#wait an amount of time for interactive CSS or other webpage loading to complete
+wait = WebDriverWait(browser, 10)
+
+#click continue button to process login
+continue_button = browser.find_element(By.XPATH,'/html/body/main/section/div/div/div/form/div[3]/button')
+continue_button.click()
+time.sleep(1)  # Let the page load
+
+#navigate to certificates
+browser.get('https://portal.vertexsmb.com/config/#!/companies/2751/certificates?status=approved')
+
+#iterate through each customer and...
+for idx, row in df.iterrows():
+    custname = str(row['customer name'])
+    custstate = str(row['customer state'])
+    saveyear = str(row['save year'])
+    savemonth = str(row['save month']).zfill(2)
+    exemptreason = str(row['exemption reason'])
+
+    # Convert full name string to state abbreviation
+    savestate = get_state_abbreviation(custstate)
+    # Configure directory string dynamically based on input sheet data
+    savedatefolder = saveyear + '-' + savemonth
+    #Define Save Directory
+    savedir = r'C:\Users\christopher.bartus\Fotronic Dropbox\Christopher Bartus\Multi-State Sales Tax\Tax Jursidictions\{}'.format(savestate)
+    savedir = os.path.join(savedir, saveyear)
+    savedir = os.path.join(savedir, savedatefolder)
+
+    #Start of loop logic
+
+    #wait for page refresh
+    print("downloading certificate for..."+custname+"....Starting at " + str(get_current_time_in_est()))
+    #wait for CSS Elements to fully load
+    try:
+        wait.until(EC.visibility_of_element_located((By.NAME, 'customercodes')))
+    except TimeoutException as e:
+        print("Timeout exception occurred for customer: " + custname + ", State Certificate Does not Exist in Customer Database " + str(e))
+        # Add the record to the exceptions DataFrame
+        add_exception_row(custname, custstate,saveyear,savemonth,exemptreason, str(e))
+        continue  # Move on to the next record
+
+    #identify search box for customer name
+    Filter_by_customer = browser.find_element(By.NAME,'customercodes')
+    #Clear the search box of any text
+    Filter_by_customer.clear()
+    # Enter the customer name into the search box
+    Filter_by_customer.send_keys(custname)
+    #Wait for CSS Elements to fully load
+    time.sleep(3)
+    # Initialize the search
+    Filter_by_customer.send_keys(Keys.RETURN)
+    #Wait for CSS Elements to fully load
+    Filter_by_jurisdiction = wait.until(EC.visibility_of_element_located((By.ID, 'tbQuickSearchByName')))
+    #identify search box for jurisdiction name
+    Filter_by_jurisdiction = browser.find_element(By.ID,'tbQuickSearchByName')
+    #Clear the search box of any text
+    Filter_by_jurisdiction.clear()
+    #Enter the jurisdiction name into the search box
+    Filter_by_jurisdiction.send_keys(custstate)
+    Filter_by_jurisdiction.send_keys(Keys.RETURN)
+    #Wait for CSS Elements to Load
+    time.sleep(3)
+
+    #Initialize the search
+    Filter_by_customer.send_keys(Keys.RETURN)
+    #Wait for the page to load a particular element, specifically the third column of the vertex table for customer name
+
+    try:
+        cust_name_from_table = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'td.ng-binding:nth-child(3)')))
+    except TimeoutException as e:
+        print("Timeout exception occurred for customer: " + custname + ", error message: " + str(e))
+        # Add the record to the exceptions DataFrame
+        add_exception_row(custname, custstate,saveyear,savemonth,exemptreason, str(e))
+        exceptions_df.to_csv(os.path.join(savedir, 'certificate errors.csv'))
+        continue  # Move on to the next record
+    #verify that the result is for the correct customer
+    if cust_name_from_table.text == custname:
+        try:
+            #Open the additional action box for the table row
+            actionmenu = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div.dropdown')))
+            actionmenu = browser.find_element(By.CSS_SELECTOR,'div.dropdown')
+            actionmenu.click()
+
+        except NoSuchElementException as e:
+            #On Error where it cannot find the drop down box, record the record that failed in the exceptions data frame
+            print("error experienced processing..."+custname +" skipping record for now...")
+            add_exception_row(custname, custstate, saveyear, savemonth, exemptreason, str(e))
+            exceptions_df.to_csv(os.path.join(savedir, 'certificate errors.csv'))
+            continue
+        time.sleep(5)
+        #click on the link for "view image" to download the certificate
+        downloadlink = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'li.ng-scope:nth-child(3) > a:nth-child(1)')))
+        downloadlink = browser.find_element(By.CSS_SELECTOR,'li.ng-scope:nth-child(3) > a:nth-child(1)')
+        time.sleep(2)
+        downloadlink.click()
+
+        #Wait for file to download
+        time.sleep(5)
+
+        #Define downloads folder
+        download_folder =r'C:\Users\christopher.bartus\Downloads'
+        #Identify the most recently downloaded file as latest file for additional processing
+        files = os.listdir(download_folder)
+        paths = [os.path.join(download_folder, basename) for basename in files]
+        latest_file = max(paths, key=os.path.getctime)
+
+
+
+        #Remove any illegal characters from the customers name that would prevent a file from being saved
+        custname = custname.replace("/", "-").replace("\\", "-").replace(":", "-").replace("*", "-").replace("?","-").replace("\"", "-").replace("<", "-").replace(">", "-").replace("|", "-")
+        # Concatenate various parts of file directory conventions to create a new file name/path for saving
+        new_name = savedatefolder + ' ' + custname +' ' + exemptreason + ' Exemption Certificate.pdf'
+        renamedfile = os.path.join(download_folder,new_name)
+        #concatenate various components of file directory naming conventions for final file name
+
+        newsavedir = os.path.join(savedir,new_name)
+        try:
+            os.rename(latest_file, renamedfile)
+        except FileExistsError as e:
+            # Error handling if duplicate record exists in download folder
+            print(custname + " already had certificate saved in downloads folder located at: " + savedir)
+            error_message = "File already exists in destination folder"
+            add_exception_row(custname, custstate, saveyear, savemonth, exemptreason, str(e))
+            exceptions_df.to_csv(os.path.join(savedir, 'certificate errors.csv'))
+            continue
+
+        # redefine latest file after renaming
+        files = os.listdir(download_folder)
+        paths = [os.path.join(download_folder, basename) for basename in files]
+        latest_file = max(paths, key=os.path.getctime)
+
+        try:
+            # Copy the file from downloads to the associated tax folder
+            shutil.copy2(renamedfile, newsavedir)
+        except FileExistsError as e:
+            # Error Handling for Moving File to related tax folder
+            print(custname + " already had certificate saved in folder located at: " + savedir)
+            error_message = "File already exists in destination folder"
+            add_exception_row(custname, custstate, error_message)
+            exceptions_df.to_csv(os.path.join(savedir, 'certificate errors.csv'))
+            continue
+        # reload page to clear fields
+        browser.get('https://portal.vertexsmb.com/config/#!/companies/2751/certificates?status=approved')
+        browser.refresh()
+        #force window to 0 index for tabs to ensure working on correct tab after downloading files
+        window_handles = browser.window_handles
+        browser.switch_to.window(window_handles[0])
+        #delete the renamed downloaded file
+        os.remove(latest_file)
+        print("download completed, file archived.")
+        print("file archived at: "+newsavedir)
+        print("Download completed at " + str(get_current_time_in_est()))
+
+
+    else:
+        print("Program experienced error validating customer name against filtered vertex data for..."+custname+' check to see if customer is blanket exempt in vertex')
+        exceptions_df.loc[len(exceptions_df)] = {
+            'customer_name': custname,
+            'state': custstate,
+            'error': "Program experienced error validating customer name against filtered vertex data for..." + custname + ' check to see if customer is blanket exempt in vertex',
+            'timestamp': get_current_time_in_est()  # Add the current time as 'timestamp'
+        }
+#close the browser
+browser.close()
+# export errors to file
+exceptions_df.to_csv(os.path.join(savedir,'certificate errors.csv'))
